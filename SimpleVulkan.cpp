@@ -3,11 +3,15 @@
 
 #include "framework.h"
 #include "SimpleVulkan.h"
+#include "VulkanRender.h"
 
 #define MAX_LOADSTRING 100
 
 // Global Variables:
+static std::unique_ptr<VulkanRender> gVulkalRender = nullptr;
 HINSTANCE hInst;                                // current instance
+static HWND gHwnd = nullptr;
+
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
@@ -40,6 +44,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 //    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEVULKAN));
 
+    gVulkalRender = std::make_unique<VulkanRender>();
+    gVulkalRender->Init(hInstance, gHwnd);
+
+
     MSG msg;
 
     // Main message loop:
@@ -51,6 +59,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
     }
+
+    gVulkalRender->Finalize();
 
     return (int) msg.wParam;
 }

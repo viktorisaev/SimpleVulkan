@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="VulkanBase">
+      <UniqueIdentifier>{0efe5a85-309c-428f-bf0d-e517c8c5443b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -27,10 +30,49 @@
     <ClInclude Include="SimpleVulkan.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VulkanRender.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanSwapChain.h">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanTools.h">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanInitializers.hpp">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanDebug.h">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanDevice.h">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanBase\VulkanBuffer.h">
+      <Filter>VulkanBase</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SimpleVulkan.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanRender.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanBase\VulkanSwapChain.cpp">
+      <Filter>VulkanBase</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanBase\VulkanTools.cpp">
+      <Filter>VulkanBase</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanBase\VulkanDebug.cpp">
+      <Filter>VulkanBase</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanBase\VulkanDevice.cpp">
+      <Filter>VulkanBase</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanBase\VulkanBuffer.cpp">
+      <Filter>VulkanBase</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
