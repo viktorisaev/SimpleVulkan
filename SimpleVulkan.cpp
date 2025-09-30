@@ -8,7 +8,7 @@
 #define MAX_LOADSTRING 100
 
 // Global Variables:
-static std::unique_ptr<VulkanRender> gVulkalRender = nullptr;
+static std::unique_ptr<VulkanRender> gVulkanRender = nullptr;
 HINSTANCE hInst;                                // current instance
 static HWND gHwnd = nullptr;
 
@@ -19,7 +19,6 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -44,23 +43,32 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 //    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEVULKAN));
 
-    gVulkalRender = std::make_unique<VulkanRender>();
-    gVulkalRender->Init(hInstance, gHwnd);
+    gVulkanRender = std::make_unique<VulkanRender>();
+    gVulkanRender->Init(hInstance, gHwnd);
 
 
     MSG msg;
 
     // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-//        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
+    bool quitMessageReceived = false;
+    while (!quitMessageReceived) {
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
+            if (msg.message == WM_QUIT) {
+                quitMessageReceived = true;
+                break;
+            }
+        }
+
+        // MAIN: render Vulkan3D
+        if (!IsIconic(gHwnd))
+        {
+            gVulkanRender->RenderFrame();
         }
     }
 
-    gVulkalRender->Finalize();
+    gVulkanRender->Finalize();
 
     return (int) msg.wParam;
 }
@@ -107,15 +115,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, hInstance, nullptr);
+   gHwnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
+   if (!gHwnd)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+   ShowWindow(gHwnd, nCmdShow);
+   UpdateWindow(gHwnd);
 
    return TRUE;
 }
@@ -140,9 +148,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // Parse the menu selections:
             switch (wmId)
             {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
                 break;
@@ -166,24 +171,4 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
-}
-
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
 }
