@@ -209,18 +209,21 @@ void VulkanRender::Finalize()
 //		vkFreeMemory(vulkDevice, vertices.memory, nullptr);
 //		vkDestroyBuffer(vulkDevice, indices.buffer, nullptr);
 //		vkFreeMemory(vulkDevice, indices.memory, nullptr);
-//		vkDestroyCommandPool(vulkDevice, commandPool, nullptr);
-		//for (size_t i = 0; i < presentCompleteSemaphores.size(); i++) {
-		//	vkDestroySemaphore(vulkDevice, presentCompleteSemaphores[i], nullptr);
-		//}
-		//for (size_t i = 0; i < renderCompleteSemaphores.size(); i++) {
-		//	vkDestroySemaphore(vulkDevice, renderCompleteSemaphores[i], nullptr);
-		//}
-		//for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
-		//	vkDestroyFence(vulkDevice, waitFences[i], nullptr);
-		//	vkDestroyBuffer(vulkDevice, uniformBuffers[i].buffer, nullptr);
-		//	vkFreeMemory(vulkDevice, uniformBuffers[i].memory, nullptr);
-		//}
+		vkDestroyCommandPool(vulkDevice, vulkCommandPool, nullptr);
+		for (size_t i = 0; i < m_presentCompleteSemaphores.size(); i++)
+		{
+			vkDestroySemaphore(vulkDevice, m_presentCompleteSemaphores[i], nullptr);
+		}
+		for (size_t i = 0; i < m_renderCompleteSemaphores.size(); i++)
+		{
+			vkDestroySemaphore(vulkDevice, m_renderCompleteSemaphores[i], nullptr);
+		}
+		for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++)
+		{
+			vkDestroyFence(vulkDevice, vulkWaitFences[i], nullptr);
+			//vkDestroyBuffer(vulkDevice, uniformBuffers[i].buffer, nullptr);
+			//vkFreeMemory(vulkDevice, uniformBuffers[i].memory, nullptr);
+		}
 	}
 }
 
