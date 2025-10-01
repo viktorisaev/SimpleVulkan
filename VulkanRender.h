@@ -37,6 +37,11 @@ struct UniformBuffer {
     uint8_t* mapped{ nullptr };
 };
 
+struct Vertex {
+    float position[3];
+    float normal[3];
+};
+
 
 
 class VulkanRender
@@ -59,7 +64,9 @@ private:
     void setupRenderPass();
     void setupFrameBuffer();
     void createUniformBuffers();
+    void createPipelines();
 
+    VkShaderModule loadSPIRVShader(const std::string& filename);
     uint32_t getMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags properties);
     void updateViewMatrix();
 
@@ -79,6 +86,21 @@ private:
     std::array<VkFence, MAX_CONCURRENT_FRAMES> vulkWaitFences{};
     std::vector<VkFramebuffer>vulkFrameBuffers;     // List of available frame buffers (same as number of swap chain images)
     VkRenderPass vulkRenderPass{ VK_NULL_HANDLE };  // Global render pass for frame buffer writes
+    // The pipeline layout is used by a pipeline to access the descriptor sets
+    // It defines interface (without binding any actual data) between the shader stages used by the pipeline and the shader resources
+    // A pipeline layout can be shared among multiple pipelines as long as their interfaces match
+    VkPipelineLayout vulkPipelineLayout{ VK_NULL_HANDLE };
+    // The descriptor set layout describes the shader binding layout (without actually referencing descriptor)
+    // Like the pipeline layout it's pretty much a blueprint and can be used with different descriptor sets as long as their layout matches
+    VkDescriptorSetLayout vulkDescriptorSetLayout{ VK_NULL_HANDLE };
+    VkPipelineCache vulkPipelineCache{ VK_NULL_HANDLE };    // Pipeline cache object
+    // Pipelines (often called "pipeline state objects") are used to bake all states that affect a pipeline
+    // While in OpenGL every state can be changed at (almost) any time, Vulkan requires to layout the graphics (and compute) pipeline states upfront
+    // So for each combination of non-dynamic pipeline states you need a new pipeline (there are a few exceptions to this not discussed here)
+    // Even though this adds a new dimension of planning ahead, it's a great opportunity for performance optimizations by the driver
+    VkPipeline vulkPipeline{ VK_NULL_HANDLE };
+
+
 
     std::vector<VkLayerSettingEXT> m_enabledLayerSettings;    // @brief Set of layer settings to be enabled for this example (must be set in the derived constructor) 
 
