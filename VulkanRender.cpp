@@ -14,8 +14,12 @@ bool VulkanRender::Init(HINSTANCE hInstance, HWND hwnd)
 	createCommandBuffers();
 	setupDepthStencil();
 
+	createUniformBuffers();
+
 	setupRenderPass();
 	setupFrameBuffer();
+
+	updateViewMatrix();	// set m_viewMatrix
 
 
 	// TODO: remove it from here!
@@ -51,13 +55,13 @@ void VulkanRender::RenderFrame()
 	}
 
 	// Use a fence to wait until the command buffer has finished execution before using it again
-	vkWaitForFences(vulkDevice, 1, &vulkWaitFences[currentFrame], VK_TRUE, UINT64_MAX);
-	VK_CHECK_RESULT(vkResetFences(vulkDevice, 1, &vulkWaitFences[currentFrame]));
+	vkWaitForFences(vulkDevice, 1, &vulkWaitFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+	VK_CHECK_RESULT(vkResetFences(vulkDevice, 1, &vulkWaitFences[m_currentFrame]));
 
 	// Get the next swap chain image from the implementation
 	// Note that the implementation is free to return the images in any order, so we must use the acquire function and can't just cycle through the images/imageIndex on our own
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(vulkDevice, m_swapChain.swapChain, UINT64_MAX, m_presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(vulkDevice, m_swapChain.swapChain, UINT64_MAX, m_presentCompleteSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 //TODO:		windowResize();
@@ -68,22 +72,22 @@ void VulkanRender::RenderFrame()
 		throw "Could not acquire the next swap chain image!";
 	}
 
-	//// Update the uniform buffer for the next frame
-	//ShaderData shaderData{};
-	//shaderData.projectionMatrix = camera.matrices.perspective;
-	//shaderData.viewMatrix = camera.matrices.view;
-	//shaderData.modelMatrix = glm::mat4(1.0f);
+	// Update the uniform buffer for the next frame
+	ShaderData shaderData{};
+	shaderData.projectionMatrix = glm::perspective(glm::radians(glm::pi<float>()/2.0f), float(width)/float(height), 0.1f, 100.0f); //camera.matrices.perspective;
+	shaderData.viewMatrix = m_viewMatrix;
+	shaderData.modelMatrix = glm::mat4(1.0f);
 
-	//// Copy the current matrices to the current frame's uniform buffer
-	//// Note: Since we requested a host coherent memory type for the uniform buffer, the write is instantly visible to the GPU
-	//memcpy(uniformBuffers[currentFrame].mapped, &shaderData, sizeof(ShaderData));
+	// Copy the current matrices to the current frame's uniform buffer
+	// Note: Since we requested a host coherent memory type for the uniform buffer, the write is instantly visible to the GPU
+	memcpy(m_uniformBuffers[m_currentFrame].mapped, &shaderData, sizeof(ShaderData));
 
 	// Build the command buffer
 	// Unlike in OpenGL all rendering commands are recorded into command buffers that are then submitted to the queue
 	// This allows to generate work upfront in a separate thread
 	// For basic command buffers (like in this sample), recording is so fast that there is no need to offload this
 
-	vkResetCommandBuffer(vulkCommandBuffers[currentFrame], 0);
+	vkResetCommandBuffer(vulkCommandBuffers[m_currentFrame], 0);
 
 	VkCommandBufferBeginInfo cmdBufInfo{};
 	cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -106,7 +110,7 @@ void VulkanRender::RenderFrame()
 	renderPassBeginInfo.pClearValues = clearValues;
 	renderPassBeginInfo.framebuffer = vulkFrameBuffers[imageIndex];
 
-	const VkCommandBuffer commandBuffer = vulkCommandBuffers[currentFrame];
+	const VkCommandBuffer commandBuffer = vulkCommandBuffers[m_currentFrame];
 	VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &cmdBufInfo));
 
 	// Start the first sub pass specified in our default render pass setup by the base class
@@ -130,7 +134,7 @@ void VulkanRender::RenderFrame()
 
 //TODO:
 	//// Bind descriptor set for the current frame's uniform buffer, so the shader uses the data from that buffer for this draw
-	//vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers[currentFrame].descriptorSet, 0, nullptr);
+	//vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &uniformBuffers[m_currentFrame].descriptorSet, 0, nullptr);
 	//// Bind the rendering pipeline
 	//// The pipeline (state object) contains all states of the rendering pipeline, binding it will set all the states specified at pipeline creation time
 	//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -161,14 +165,14 @@ void VulkanRender::RenderFrame()
 	submitInfo.commandBufferCount = 1;                  // We submit a single command buffer
 
 	// Semaphore to wait upon before the submitted command buffer starts executing
-	submitInfo.pWaitSemaphores = &m_presentCompleteSemaphores[currentFrame];
+	submitInfo.pWaitSemaphores = &m_presentCompleteSemaphores[m_currentFrame];
 	submitInfo.waitSemaphoreCount = 1;
 	// Semaphore to be signaled when command buffers have completed
 	submitInfo.pSignalSemaphores = &m_renderCompleteSemaphores[imageIndex];
 	submitInfo.signalSemaphoreCount = 1;
 
 	// Submit to the graphics queue passing a wait fence
-	VK_CHECK_RESULT(vkQueueSubmit(vulkQueue, 1, &submitInfo, vulkWaitFences[currentFrame]));
+	VK_CHECK_RESULT(vkQueueSubmit(vulkQueue, 1, &submitInfo, vulkWaitFences[m_currentFrame]));
 
 	// Present the current frame buffer to the swap chain
 	// Pass the semaphore signaled by the command buffer submission from the submit info as the wait semaphore for swap chain presentation
@@ -193,13 +197,14 @@ void VulkanRender::RenderFrame()
 	}
 
 	// Select the next frame to render to, based on the max. no. of concurrent frames
-	currentFrame = (currentFrame + 1) % MAX_CONCURRENT_FRAMES;
+	m_currentFrame = (m_currentFrame + 1) % MAX_CONCURRENT_FRAMES;
 }
 
 void VulkanRender::Finalize()
 {
 	// Clean up used Vulkan resources
 	// Note: Inherited destructor cleans up resources stored in base class
+
 	if (vulkDevice)
 	{
 //		vkDestroyPipeline(vulkDevice, pipeline, nullptr);
@@ -224,6 +229,8 @@ void VulkanRender::Finalize()
 			//vkDestroyBuffer(vulkDevice, uniformBuffers[i].buffer, nullptr);
 			//vkFreeMemory(vulkDevice, uniformBuffers[i].memory, nullptr);
 		}
+
+		m_swapChain.cleanup();
 	}
 }
 
@@ -760,5 +767,83 @@ void VulkanRender::setupDepthStencil()
 	VK_CHECK_RESULT(vkCreateImageView(vulkDevice, &depthStencilViewCI, nullptr, &depthStencil.view));
 }
 
+uint32_t VulkanRender::getMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags properties)
+{
+	// Iterate over all memory types available for the device used in this example
+	for (uint32_t i = 0; i < vulkDeviceMemoryProperties.memoryTypeCount; i++)
+	{
+		if ((typeBits & 1) == 1)
+		{
+			if ((vulkDeviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+			{
+				return i;
+			}
+		}
+		typeBits >>= 1;
+	}
+
+	throw "Could not find a suitable memory type!";
+}
+
+void VulkanRender::createUniformBuffers()
+{
+	// Prepare and initialize the per-frame uniform buffer blocks containing shader uniforms
+	// Single uniforms like in OpenGL are no longer present in Vulkan. All hader uniforms are passed via uniform buffer blocks
+	VkMemoryRequirements memReqs;
+
+	// Vertex shader uniform buffer block
+	VkBufferCreateInfo bufferInfo{};
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.pNext = nullptr;
+	allocInfo.allocationSize = 0;
+	allocInfo.memoryTypeIndex = 0;
+
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(ShaderData);
+	// This buffer will be used as a uniform buffer
+	bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	// Create the buffers
+	for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
+		VK_CHECK_RESULT(vkCreateBuffer(vulkDevice, &bufferInfo, nullptr, &m_uniformBuffers[i].buffer));
+		// Get memory requirements including size, alignment and memory type
+		vkGetBufferMemoryRequirements(vulkDevice, m_uniformBuffers[i].buffer, &memReqs);
+		allocInfo.allocationSize = memReqs.size;
+		// Get the memory type index that supports host visible memory access
+		// Most implementations offer multiple memory types and selecting the correct one to allocate memory from is crucial
+		// We also want the buffer to be host coherent so we don't have to flush (or sync after every update.
+		// Note: This may affect performance so you might not want to do this in a real world application that updates buffers on a regular base
+		allocInfo.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		// Allocate memory for the uniform buffer
+		VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &allocInfo, nullptr, &(m_uniformBuffers[i].memory)));
+		// Bind memory to buffer
+		VK_CHECK_RESULT(vkBindBufferMemory(vulkDevice, m_uniformBuffers[i].buffer, m_uniformBuffers[i].memory, 0));
+		// We map the buffer once, so we can update it without having to map it again
+		VK_CHECK_RESULT(vkMapMemory(vulkDevice, m_uniformBuffers[i].memory, 0, sizeof(ShaderData), 0, (void**)&m_uniformBuffers[i].mapped));
+	}
+
+}
+
+
+void VulkanRender::updateViewMatrix()
+{
+	glm::mat4 currentMatrix = m_viewMatrix;
+
+	glm::vec3 rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 position = glm::vec3(0.0f, 0.0f, -2.5f);
+
+	glm::mat4 rotM = glm::mat4(1.0f);
+	glm::mat4 transM;
+
+	rotM = glm::rotate(rotM, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	glm::vec3 translation = position;
+	transM = glm::translate(glm::mat4(1.0f), translation);
+
+	m_viewMatrix = transM * rotM;
+};
 
 #pragma endregion Internal

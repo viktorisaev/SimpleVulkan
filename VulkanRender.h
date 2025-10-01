@@ -8,6 +8,10 @@
 #include "VulkanBase/VulkanDevice.h"
 #include "VulkanBase/VulkanSwapChain.h"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 
 // We want to keep GPU and CPU busy. To do that we may start building a new command buffer while the previous one is still being executed
 // This number defines how many frames may be worked on simultaneously at once
@@ -20,6 +24,19 @@ struct {
     VkDeviceMemory memory;
     VkImageView view;
 } depthStencil{};
+
+
+// Uniform buffer block object
+struct UniformBuffer {
+    VkDeviceMemory memory{ VK_NULL_HANDLE };
+    VkBuffer buffer{ VK_NULL_HANDLE };
+    // The descriptor set stores the resources bound to the binding points in a shader
+    // It connects the binding points of the different shaders with the buffers and images used for those bindings
+    VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
+    // We keep a pointer to the mapped buffer, so we can easily update it's contents via a memcpy
+    uint8_t* mapped{ nullptr };
+};
+
 
 
 class VulkanRender
@@ -41,6 +58,10 @@ private:
     void createCommandBuffers();
     void setupRenderPass();
     void setupFrameBuffer();
+    void createUniformBuffers();
+
+    uint32_t getMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags properties);
+    void updateViewMatrix();
 
 private:
     VkInstance vulkInstance{ VK_NULL_HANDLE };
@@ -79,6 +100,9 @@ private:
     uint32_t width = 1280;
     uint32_t height = 720;
 
-    uint32_t currentFrame{ 0 }; // To select the correct sync and command objects, we need to keep track of the current frame
+    uint32_t m_currentFrame{ 0 }; // To select the correct sync and command objects, we need to keep track of the current frame
 
+    std::array<UniformBuffer, MAX_CONCURRENT_FRAMES> m_uniformBuffers;    // We use one UBO per frame, so we can have a frame overlap and make sure that uniforms aren't updated while still in use
+
+    glm::mat4 m_viewMatrix;
 };
