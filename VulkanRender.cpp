@@ -16,10 +16,17 @@ bool VulkanRender::Init(HINSTANCE hInstance, HWND hwnd)
 
 	createUniformBuffers();
 
+	createDescriptorSetLayout();
+	createDescriptorPool();
+	createDescriptorSets();
+
+
 	setupRenderPass();
 	setupFrameBuffer();
 
 	createPipelines();
+
+	createVertexBuffer();
 
 	updateViewMatrix();	// set m_viewMatrix
 
@@ -76,7 +83,7 @@ void VulkanRender::RenderFrame()
 
 	// Update the uniform buffer for the next frame
 	ShaderData shaderData{};
-	shaderData.projectionMatrix = glm::perspective(glm::radians(glm::pi<float>()/2.0f), float(width)/float(height), 0.1f, 100.0f); //camera.matrices.perspective;
+	shaderData.projectionMatrix = glm::perspective(glm::pi<float>()/2.0f, float(width)/float(height), 0.1f, 256.0f); //camera.matrices.perspective;
 	shaderData.viewMatrix = m_viewMatrix;
 	shaderData.modelMatrix = glm::mat4(1.0f);
 
@@ -133,22 +140,18 @@ void VulkanRender::RenderFrame()
 	scissor.offset.y = 0;
 	vkCmdSetScissor(curCommandBuffer, 0, 1, &scissor);
 
-
-//TODO:
 	// Bind descriptor set for the current frame's uniform buffer, so the shader uses the data from that buffer for this draw
 	vkCmdBindDescriptorSets(curCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkPipelineLayout, 0, 1, &m_uniformBuffers[m_currentFrame].descriptorSet, 0, nullptr);
-	//// Bind the rendering pipeline
-	//// The pipeline (state object) contains all states of the rendering pipeline, binding it will set all the states specified at pipeline creation time
-	//vkCmdBindPipeline(curCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	//// Bind triangle vertex buffer (contains position and colors)
-	//VkDeviceSize offsets[1]{ 0 };
-	//vkCmdBindVertexBuffers(curCommandBuffer, 0, 1, &vertices.buffer, offsets);
-	//// Bind triangle index buffer
-	//vkCmdBindIndexBuffer(curCommandBuffer, indices.buffer, 0, VK_INDEX_TYPE_UINT16);
-	//// Draw indexed triangle
-	//vkCmdDrawIndexed(curCommandBuffer, indices.count, 1, 0, 0, 0);
-
-
+	// Bind the rendering pipeline
+	// The pipeline (state object) contains all states of the rendering pipeline, binding it will set all the states specified at pipeline creation time
+	vkCmdBindPipeline(curCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkPipeline);
+	// Bind triangle vertex buffer (contains position and colors)
+	VkDeviceSize offsets[1]{ 0 };
+	vkCmdBindVertexBuffers(curCommandBuffer, 0, 1, &m_vertices.buffer, offsets);
+	// Bind triangle index buffer
+	vkCmdBindIndexBuffer(curCommandBuffer, m_indices.buffer, 0, VK_INDEX_TYPE_UINT16);
+	// Draw indexed triangle
+	vkCmdDrawIndexed(curCommandBuffer, m_indices.count, 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(curCommandBuffer);
 	// Ending the render pass will add an implicit barrier transitioning the frame buffer color attachment to
@@ -1000,6 +1003,303 @@ void VulkanRender::createPipelines()
 	vkDestroyShaderModule(vulkDevice, shaderStages[1].module, nullptr);
 }
 
+// Prepare vertex and index buffers for an indexed triangle
+// Also uploads them to device local memory using staging and initializes vertex input and attribute binding to match the vertex shader
+void VulkanRender::createVertexBuffer()
+{
+	// A note on memory management in Vulkan in general:
+	//	This is a very complex topic and while it's fine for an example application to small individual memory allocations that is not
+	//	what should be done a real-world application, where you should allocate large chunks of memory at once instead.
+
+	// Setup vertices
+	//std::vector<Vertex> vertexBuffer{
+	//	{ { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } },
+	//	{ { -1.0f, -1.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } },
+	//	{ {  1.0f,  1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+	//	{ {  1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+	//};
+	std::vector<Vertex> vertexBuffer = {
+		// Front face (+Z)
+		{{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}},
+		{{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}},
+		{{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}},
+		{{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}},
+
+		// Back face (-Z)
+		{{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}},
+		{{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}},
+		{{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}},
+		{{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}},
+
+		// Left face (-X)
+		{{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}},
+		{{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}},
+		{{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}},
+		{{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}},
+
+		// Right face (+X)
+		{{ 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}},
+		{{ 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}},
+		{{ 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}},
+		{{ 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}},
+
+		// Top face (+Y)
+		{{-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}},
+		{{ 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}},
+		{{ 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}},
+		{{-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}},
+
+		// Bottom face (-Y)
+		{{-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}},
+		{{ 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}},
+		{{ 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}},
+		{{-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}},
+	};
+	uint32_t vertexBufferSize = static_cast<uint32_t>(vertexBuffer.size()) * sizeof(Vertex);
+
+	// Setup indices
+//		std::vector<uint16_t> indexBuffer{ 0, 1, 2, 3 };
+	std::vector<uint16_t> indexBuffer = {
+		// Front face (+Z)
+		0, 1, 2,  2, 3, 0,
+
+		// Back face (-Z)
+		4, 5, 6,  6, 7, 4,
+
+		// Left face (-X)
+		8, 9,10, 10,11, 8,
+
+		// Right face (+X)
+	   12,13,14, 14,15,12,
+
+	   // Top face (+Y)
+	  16,17,18, 18,19,16,
+
+	  // Bottom face (-Y)
+	 20,21,22, 22,23,20
+	};
+
+
+	m_indices.count = static_cast<uint32_t>(indexBuffer.size());
+	uint32_t indexBufferSize = m_indices.count * sizeof(uint16_t);
+
+	VkMemoryAllocateInfo memAlloc{};
+	memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	VkMemoryRequirements memReqs;
+
+	// Static data like vertex and index buffer should be stored on the device memory for optimal (and fastest) access by the GPU
+	//
+	// To achieve this we use so-called "staging buffers" :
+	// - Create a buffer that's visible to the host (and can be mapped)
+	// - Copy the data to this buffer
+	// - Create another buffer that's local on the device (VRAM) with the same size
+	// - Copy the data from the host to the device using a command buffer
+	// - Delete the host visible (staging) buffer
+	// - Use the device local buffers for rendering
+	//
+	// Note: On unified memory architectures where host (CPU) and GPU share the same memory, staging is not necessary
+	// To keep this sample easy to follow, there is no check for that in place
+
+	struct StagingBuffer {
+		VkDeviceMemory memory;
+		VkBuffer buffer;
+	};
+
+	struct {
+		StagingBuffer vertices;
+		StagingBuffer indices;
+	} stagingBuffers{};
+
+	void* data;
+
+	// Vertex buffer
+	VkBufferCreateInfo vertexBufferInfoCI{};
+	vertexBufferInfoCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferInfoCI.size = vertexBufferSize;
+	// Buffer is used as the copy source
+	vertexBufferInfoCI.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	// Create a host-visible buffer to copy the vertex data to (staging buffer)
+	VK_CHECK_RESULT(vkCreateBuffer(vulkDevice, &vertexBufferInfoCI, nullptr, &stagingBuffers.vertices.buffer));
+	vkGetBufferMemoryRequirements(vulkDevice, stagingBuffers.vertices.buffer, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	// Request a host visible memory type that can be used to copy our data to
+	// Also request it to be coherent, so that writes are visible to the GPU right after unmapping the buffer
+	memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &memAlloc, nullptr, &stagingBuffers.vertices.memory));
+	// Map and copy
+	VK_CHECK_RESULT(vkMapMemory(vulkDevice, stagingBuffers.vertices.memory, 0, memAlloc.allocationSize, 0, &data));
+	memcpy(data, vertexBuffer.data(), vertexBufferSize);
+	vkUnmapMemory(vulkDevice, stagingBuffers.vertices.memory);
+	VK_CHECK_RESULT(vkBindBufferMemory(vulkDevice, stagingBuffers.vertices.buffer, stagingBuffers.vertices.memory, 0));
+
+	// Create a device local buffer to which the (host local) vertex data will be copied and which will be used for rendering
+	vertexBufferInfoCI.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	VK_CHECK_RESULT(vkCreateBuffer(vulkDevice, &vertexBufferInfoCI, nullptr, &m_vertices.buffer));
+	vkGetBufferMemoryRequirements(vulkDevice, m_vertices.buffer, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &memAlloc, nullptr, &m_vertices.memory));
+	VK_CHECK_RESULT(vkBindBufferMemory(vulkDevice, m_vertices.buffer, m_vertices.memory, 0));
+
+	// Index buffer
+	VkBufferCreateInfo indexbufferCI{};
+	indexbufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	indexbufferCI.size = indexBufferSize;
+	indexbufferCI.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	// Copy index data to a buffer visible to the host (staging buffer)
+	VK_CHECK_RESULT(vkCreateBuffer(vulkDevice, &indexbufferCI, nullptr, &stagingBuffers.indices.buffer));
+	vkGetBufferMemoryRequirements(vulkDevice, stagingBuffers.indices.buffer, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &memAlloc, nullptr, &stagingBuffers.indices.memory));
+	VK_CHECK_RESULT(vkMapMemory(vulkDevice, stagingBuffers.indices.memory, 0, indexBufferSize, 0, &data));
+	memcpy(data, indexBuffer.data(), indexBufferSize);
+	vkUnmapMemory(vulkDevice, stagingBuffers.indices.memory);
+	VK_CHECK_RESULT(vkBindBufferMemory(vulkDevice, stagingBuffers.indices.buffer, stagingBuffers.indices.memory, 0));
+
+	// Create destination buffer with device only visibility
+	indexbufferCI.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	VK_CHECK_RESULT(vkCreateBuffer(vulkDevice, &indexbufferCI, nullptr, &m_indices.buffer));
+	vkGetBufferMemoryRequirements(vulkDevice, m_indices.buffer, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	memAlloc.memoryTypeIndex = getMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &memAlloc, nullptr, &m_indices.memory));
+	VK_CHECK_RESULT(vkBindBufferMemory(vulkDevice, m_indices.buffer, m_indices.memory, 0));
+
+	// Buffer copies have to be submitted to a queue, so we need a command buffer for them
+	// Note: Some devices offer a dedicated transfer queue (with only the transfer bit set) that may be faster when doing lots of copies
+	VkCommandBuffer copyCmd;
+
+	VkCommandBufferAllocateInfo cmdBufAllocateInfo{};
+	cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufAllocateInfo.commandPool = vulkCommandPool;
+	cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufAllocateInfo.commandBufferCount = 1;
+	VK_CHECK_RESULT(vkAllocateCommandBuffers(vulkDevice, &cmdBufAllocateInfo, &copyCmd));
+
+	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+	VK_CHECK_RESULT(vkBeginCommandBuffer(copyCmd, &cmdBufInfo));
+	// Put buffer region copies into command buffer
+	VkBufferCopy copyRegion{};
+	// Vertex buffer
+	copyRegion.size = vertexBufferSize;
+	vkCmdCopyBuffer(copyCmd, stagingBuffers.vertices.buffer, m_vertices.buffer, 1, &copyRegion);
+	// Index buffer
+	copyRegion.size = indexBufferSize;
+	vkCmdCopyBuffer(copyCmd, stagingBuffers.indices.buffer, m_indices.buffer, 1, &copyRegion);
+	VK_CHECK_RESULT(vkEndCommandBuffer(copyCmd));
+
+	// Submit the command buffer to the queue to finish the copy
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &copyCmd;
+
+	// Create fence to ensure that the command buffer has finished executing
+	VkFenceCreateInfo fenceCI{};
+	fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCI.flags = 0;
+	VkFence fence;
+	VK_CHECK_RESULT(vkCreateFence(vulkDevice, &fenceCI, nullptr, &fence));
+
+	// Submit to the queue
+	VK_CHECK_RESULT(vkQueueSubmit(vulkQueue, 1, &submitInfo, fence));
+	// Wait for the fence to signal that command buffer has finished executing
+	VK_CHECK_RESULT(vkWaitForFences(vulkDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
+
+	vkDestroyFence(vulkDevice, fence, nullptr);
+	vkFreeCommandBuffers(vulkDevice, vulkCommandPool, 1, &copyCmd);
+
+	// Destroy staging buffers
+	// Note: Staging buffer must not be deleted before the copies have been submitted and executed
+	vkDestroyBuffer(vulkDevice, stagingBuffers.vertices.buffer, nullptr);
+	vkFreeMemory(vulkDevice, stagingBuffers.vertices.memory, nullptr);
+	vkDestroyBuffer(vulkDevice, stagingBuffers.indices.buffer, nullptr);
+	vkFreeMemory(vulkDevice, stagingBuffers.indices.memory, nullptr);
+}
+
+// Descriptors are allocated from a pool, that tells the implementation how many and what types of descriptors we are going to use (at maximum)
+void VulkanRender::createDescriptorPool()
+{
+	// We need to tell the API the number of max. requested descriptors per type
+	VkDescriptorPoolSize descriptorTypeCounts[1]{};
+	// This example only one descriptor type (uniform buffer)
+	descriptorTypeCounts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	// We have one buffer (and as such descriptor) per frame
+	descriptorTypeCounts[0].descriptorCount = MAX_CONCURRENT_FRAMES;
+	// For additional types you need to add new entries in the type count list
+	// E.g. for two combined image samplers :
+	// typeCounts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	// typeCounts[1].descriptorCount = 2;
+
+	// Create the global descriptor pool
+	// All descriptors used in this example are allocated from this pool
+	VkDescriptorPoolCreateInfo descriptorPoolCI{};
+	descriptorPoolCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCI.pNext = nullptr;
+	descriptorPoolCI.poolSizeCount = 1;
+	descriptorPoolCI.pPoolSizes = descriptorTypeCounts;
+	// Set the max. number of descriptor sets that can be requested from this pool (requesting beyond this limit will result in an error)
+	// Our sample will create one set per uniform buffer per frame
+	descriptorPoolCI.maxSets = MAX_CONCURRENT_FRAMES;
+	VK_CHECK_RESULT(vkCreateDescriptorPool(vulkDevice, &descriptorPoolCI, nullptr, &vulkDescriptorPool));
+}
+
+// Descriptor set layouts define the interface between our application and the shader
+// Basically connects the different shader stages to descriptors for binding uniform buffers, image samplers, etc.
+// So every shader binding should map to one descriptor set layout binding
+void VulkanRender::createDescriptorSetLayout()
+{
+	// Binding 0: Uniform buffer (Vertex shader)
+	VkDescriptorSetLayoutBinding layoutBinding{};
+	layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	layoutBinding.descriptorCount = 1;
+	layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	layoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo descriptorLayoutCI{};
+	descriptorLayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorLayoutCI.pNext = nullptr;
+	descriptorLayoutCI.bindingCount = 1;
+	descriptorLayoutCI.pBindings = &layoutBinding;
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(vulkDevice, &descriptorLayoutCI, nullptr, &vulkDescriptorSetLayout));
+}
+
+// Shaders access data using descriptor sets that "point" at our uniform buffers
+// The descriptor sets make use of the descriptor set layouts created above 
+void VulkanRender::createDescriptorSets()
+{
+	// Allocate one descriptor set per frame from the global descriptor pool
+	for (uint32_t i = 0; i < MAX_CONCURRENT_FRAMES; i++) {
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = vulkDescriptorPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &vulkDescriptorSetLayout;
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(vulkDevice, &allocInfo, &m_uniformBuffers[i].descriptorSet));
+
+		// Update the descriptor set determining the shader binding points
+		// For every binding point used in a shader there needs to be one
+		// descriptor set matching that binding point
+		VkWriteDescriptorSet writeDescriptorSet{};
+
+		// The buffer's information is passed using a descriptor info structure
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = m_uniformBuffers[i].buffer;
+		bufferInfo.range = sizeof(ShaderData);
+
+		// Binding 0 : Uniform buffer
+		writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeDescriptorSet.dstSet = m_uniformBuffers[i].descriptorSet;
+		writeDescriptorSet.descriptorCount = 1;
+		writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeDescriptorSet.pBufferInfo = &bufferInfo;
+		writeDescriptorSet.dstBinding = 0;
+		vkUpdateDescriptorSets(vulkDevice, 1, &writeDescriptorSet, 0, nullptr);
+	}
+}
+
+
 // Vulkan loads its shaders from an immediate binary representation called SPIR-V
 // Shaders are compiled offline from e.g. GLSL using the reference glslang compiler
 // This function loads such a shader from a binary file and returns a shader module structure
@@ -1043,13 +1343,12 @@ VkShaderModule VulkanRender::loadSPIRVShader(const std::string& filename)
 	}
 }
 
-
 void VulkanRender::updateViewMatrix()
 {
 	glm::mat4 currentMatrix = m_viewMatrix;
 
 	glm::vec3 rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 position = glm::vec3(0.0f, 0.0f, -2.5f);
+	glm::vec3 position = glm::vec3(0.0f, 0.0f, -1.5f);
 
 	glm::mat4 rotM = glm::mat4(1.0f);
 	glm::mat4 transM;

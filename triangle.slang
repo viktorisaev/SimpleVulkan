@@ -71,7 +71,11 @@ VertexToFragment vertexMain(VertexInput input)
     output.worldNormal = normalize(mul(ubo.viewMatrix, float4(input.normal, 1.0))).xyz;
 
 	output.clipPosition = mul(ubo.projectionMatrix, mul(ubo.modelMatrix, worldPos)); 
+//	output.clipPosition =  mul(ubo.modelMatrix, float4(input.position, 1.0));       // DEBUG
 
+//    output.clipPosition = float4(input.normal, 1.0);        // DEBUG
+//    output.clipPosition = float4(ubo.projectionMatrix[0].xyz, 1.0);        // DEBUG
+//    output.clipPosition = float4(input.position, 1.0);        // DEBUG
 
     return output;
 }
@@ -99,4 +103,6 @@ float4 fragmentMain(VertexToFragment input)
 	float3 reflex = pow(max(dot(refl, viewPosition), 0.0f), 4.0f);
 
     return float4(diffuse + reflex, 1.0);
+//    return float4(1.0, 0.8, 0.6, 1.0);            // DEBUG
+//    return float4(input.worldNormal, 1.0);        // DEBUG
 }

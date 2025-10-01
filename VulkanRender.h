@@ -65,6 +65,10 @@ private:
     void setupFrameBuffer();
     void createUniformBuffers();
     void createPipelines();
+    void createVertexBuffer();
+    void createDescriptorPool();
+    void createDescriptorSetLayout();
+    void createDescriptorSets();
 
     VkShaderModule loadSPIRVShader(const std::string& filename);
     uint32_t getMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags properties);
@@ -99,6 +103,7 @@ private:
     // So for each combination of non-dynamic pipeline states you need a new pipeline (there are a few exceptions to this not discussed here)
     // Even though this adds a new dimension of planning ahead, it's a great opportunity for performance optimizations by the driver
     VkPipeline vulkPipeline{ VK_NULL_HANDLE };
+    VkDescriptorPool vulkDescriptorPool{ VK_NULL_HANDLE };  // Descriptor set pool
 
 
 
@@ -127,4 +132,18 @@ private:
     std::array<UniformBuffer, MAX_CONCURRENT_FRAMES> m_uniformBuffers;    // We use one UBO per frame, so we can have a frame overlap and make sure that uniforms aren't updated while still in use
 
     glm::mat4 m_viewMatrix;
+
+    // Vertex buffer and attributes
+    struct {
+        VkDeviceMemory memory{ VK_NULL_HANDLE }; // Handle to the device memory for this buffer
+        VkBuffer buffer{ VK_NULL_HANDLE };		 // Handle to the Vulkan buffer object that the memory is bound to
+    } m_vertices;
+
+    // Index buffer
+    struct {
+        VkDeviceMemory memory{ VK_NULL_HANDLE };
+        VkBuffer buffer{ VK_NULL_HANDLE };
+        uint32_t count{ 0 };
+    } m_indices;
+
 };
