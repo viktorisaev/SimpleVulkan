@@ -1,0 +1,2 @@
+%VULKAN_SDK%\Bin\slangc triangle.slang -profile spirv_1_4 -matrix-layout-column-major -target spirv -o triangle.vert.spv -entry vertexMain -stage vertex -warnings-disable 39001
+%VULKAN_SDK%\Bin\slangc triangle.slang -profile spirv_1_4 -matrix-layout-column-major -target spirv -o triangle.frag.spv -entry fragmentMain -stage fragment -warnings-disable 39001

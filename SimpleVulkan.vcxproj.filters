@@ -16,6 +16,9 @@
     <Filter Include="VulkanBase">
       <UniqueIdentifier>{0efe5a85-309c-428f-bf0d-e517c8c5443b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{ac17c243-7982-44a9-8d00-cb0827510922}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -87,5 +90,10 @@
     <Image Include="SimpleVulkan.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="triangle.slang">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
