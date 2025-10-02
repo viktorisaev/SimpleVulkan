@@ -74,7 +74,7 @@ void VulkanRender::RenderFrame(float deltaTime)
 	VkResult result = vkAcquireNextImageKHR(vulkDevice, m_swapChain.swapChain, UINT64_MAX, m_presentCompleteSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
-//TODO:		windowResize();
+		HandleWindowResize(width, height);
 		return;
 	}
 	else if ((result != VK_SUCCESS) && (result != VK_SUBOPTIMAL_KHR))
@@ -195,7 +195,7 @@ void VulkanRender::RenderFrame(float deltaTime)
 
 	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR))
 	{
-//TODO:		windowResize();
+		HandleWindowResize(width, height);
 	}
 	else if (result != VK_SUCCESS)
 	{
@@ -296,16 +296,16 @@ void VulkanRender::initVulkan()
 	// Vulkan device creation
 	// This is handled by a separate class that gets a logical device representation
 	// and encapsulates functions related to a device
-	vulkanDevice = new vks::VulkanDevice(vulkPhysicalDevice);
+	m_vulkanDevice = new vks::VulkanDevice(vulkPhysicalDevice);
 
 	// Derived examples can enable extensions based on the list of supported extensions read from the physical device
 //	getEnabledExtensions();
 
-	VK_CHECK_RESULT(vulkanDevice->createLogicalDevice(vulkEnabledFeatures, m_enabledDeviceExtensions, vulkDeviceCreatepNextChain));
-	vulkDevice = vulkanDevice->logicalDevice;
+	VK_CHECK_RESULT(m_vulkanDevice->createLogicalDevice(vulkEnabledFeatures, m_enabledDeviceExtensions, vulkDeviceCreatepNextChain));
+	vulkDevice = m_vulkanDevice->logicalDevice;
 
 	// Get a graphics queue from the device
-	vkGetDeviceQueue(vulkDevice, vulkanDevice->queueFamilyIndices.graphics, 0, &vulkQueue);
+	vkGetDeviceQueue(vulkDevice, m_vulkanDevice->queueFamilyIndices.graphics, 0, &vulkQueue);
 
 	// Find a suitable depth and/or stencil format
 	VkBool32 validFormat{ false };
@@ -703,7 +703,7 @@ void VulkanRender::setupDepthStencil()
 	VkMemoryAllocateInfo memAllloc {
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memReqs.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+		.memoryTypeIndex = m_vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 	};
 	VK_CHECK_RESULT(vkAllocateMemory(vulkDevice, &memAllloc, nullptr, &depthStencil.memory));
 	VK_CHECK_RESULT(vkBindImageMemory(vulkDevice, depthStencil.image, depthStencil.memory, 0));
@@ -1327,5 +1327,60 @@ void VulkanRender::updateViewMatrix(float deltaTime)
 
 	m_viewMatrix = transM * rotM;
 };
+
+void VulkanRender::HandleWindowResize(uint32_t destWidth, uint32_t destHeight)
+{
+	if (!prepared) {
+		return;
+	}
+	prepared = false;
+	resized = true;
+
+	// Ensure all operations on the device have been finished before destroying resources
+	vkDeviceWaitIdle(vulkDevice);
+
+	// Recreate swap chain
+	width = destWidth;
+	height = destHeight;
+	createSwapChain();
+
+	// Recreate the frame buffers
+	vkDestroyImageView(vulkDevice, depthStencil.view, nullptr);
+	vkDestroyImage(vulkDevice, depthStencil.image, nullptr);
+	vkFreeMemory(vulkDevice, depthStencil.memory, nullptr);
+	setupDepthStencil();
+	for (auto& frameBuffer : vulkFrameBuffers) {
+		vkDestroyFramebuffer(vulkDevice, frameBuffer, nullptr);
+	}
+	setupFrameBuffer();
+
+	//if ((width > 0.0f) && (height > 0.0f)) {
+	//	if (settings.overlay) {
+	//		ui.resize(width, height);
+	//	}
+	//}
+
+	for (auto& semaphore : m_presentCompleteSemaphores) {
+		vkDestroySemaphore(vulkDevice, semaphore, nullptr);
+	}
+	for (auto& semaphore : m_renderCompleteSemaphores) {
+		vkDestroySemaphore(vulkDevice, semaphore, nullptr);
+	}
+	for (auto& fence : vulkWaitFences) {
+		vkDestroyFence(vulkDevice, fence, nullptr);
+	}
+	createSynchronizationPrimitives();
+
+	vkDeviceWaitIdle(vulkDevice);
+
+	//if ((width > 0.0f) && (height > 0.0f)) {
+	//	camera.updateAspectRatio((float)width / (float)height);
+	//}
+
+	// Notify derived class
+//	windowResized();
+
+	prepared = true;
+}
 
 #pragma endregion Internal

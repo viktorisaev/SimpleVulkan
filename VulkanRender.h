@@ -51,7 +51,12 @@ public:
 
     void RenderFrame(float deltaTime);
 
+    void HandleWindowResize(uint32_t destWidth, uint32_t destHeight);
+
     void Finalize();
+
+    bool IsPrepared() { return prepared; }
+    void ClearPrepared() { prepared = false; }
 
 private:
     void initVulkan();
@@ -121,7 +126,7 @@ private:
     uint32_t m_apiVersion = VK_API_VERSION_1_0;
 
     VulkanSwapChain m_swapChain;
-    vks::VulkanDevice* vulkanDevice{};
+    vks::VulkanDevice* m_vulkanDevice{};
 
     bool prepared = false;
     bool resized = false;

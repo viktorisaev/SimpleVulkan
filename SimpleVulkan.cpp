@@ -27,6 +27,7 @@ uint32_t gFrameCounter = 0;
 uint32_t lastFPS = 0;
 std::chrono::time_point<std::chrono::high_resolution_clock> gLastTimestamp;
 
+bool resizing = false;
 
 
 
@@ -74,7 +75,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
 
         // MAIN: render Vulkan3D
-        if (!IsIconic(gHwnd))
+        if (!IsIconic(gHwnd) && gVulkanRender->IsPrepared())
         {
             gFrameCounter++;
 
@@ -160,6 +161,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_ENTERSIZEMOVE:
+        resizing = true;
+        break;
+    case WM_EXITSIZEMOVE:
+        resizing = false;
+        break;
+    case WM_SIZE:
+        if (gVulkanRender.get() && (gVulkanRender->IsPrepared()) && (wParam != SIZE_MINIMIZED))
+        {
+            if ((resizing) || ((wParam == SIZE_MAXIMIZED) || (wParam == SIZE_RESTORED)))
+            {
+                gVulkanRender->HandleWindowResize(LOWORD(lParam), HIWORD(lParam));
+            }
+        }
+        break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -184,6 +200,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
+        break;
+    case WM_CLOSE:
+        gVulkanRender->ClearPrepared();
+        DestroyWindow(hWnd);
         break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
