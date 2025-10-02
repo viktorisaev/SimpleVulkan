@@ -19,7 +19,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
+BOOL                InitInstance(HINSTANCE, int, uint32_t, uint32_t, bool);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
 // Frame counter to display fps
@@ -29,6 +29,8 @@ std::chrono::time_point<std::chrono::high_resolution_clock> gLastTimestamp;
 
 bool resizing = false;
 
+int screenWidth;
+int screenHeight;
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -46,8 +48,42 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     LoadStringW(hInstance, IDC_SIMPLEVULKAN, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
+    screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+    // FULL SCREEN toggle
+    bool fullScreen = false;
+
+    if (fullScreen)
+    {
+        DEVMODE dmScreenSettings;
+        memset(&dmScreenSettings, 0, sizeof(dmScreenSettings));
+        dmScreenSettings.dmSize = sizeof(dmScreenSettings);
+        dmScreenSettings.dmPelsWidth = screenWidth;
+        dmScreenSettings.dmPelsHeight = screenHeight;
+        dmScreenSettings.dmBitsPerPel = 32;
+        dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+        if (ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
+        {
+            if (MessageBox(NULL, L"Fullscreen Mode not supported!\n Switch to window mode?", L"Error", MB_YESNO | MB_ICONEXCLAMATION) == IDYES)
+            {
+//                    settings.fullscreen = false;
+            }
+            else
+            {
+//                  return nullptr;
+            }
+        }
+    }
+    else
+    {
+        screenWidth = 1280;
+        screenHeight = 720;
+    }
+
+
     // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
+    if (!InitInstance (hInstance, nCmdShow, screenWidth, screenHeight, fullScreen))
     {
         return FALSE;
     }
@@ -55,8 +91,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 //    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEVULKAN));
 
     gVulkanRender = std::make_unique<VulkanRender>();
-    gVulkanRender->Init(hInstance, gHwnd);
-
+    gVulkanRender->Init(hInstance, gHwnd, screenWidth, screenHeight);
 
     MSG msg;
 
@@ -120,21 +155,37 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow, uint32_t destWidth, uint32_t destHeight, bool fullScreen)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   gHwnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, nullptr, nullptr, hInstance, nullptr);
+   DWORD dwExStyle;
+   DWORD dwStyle;
+   if (fullScreen)
+   {
+       dwExStyle = WS_EX_APPWINDOW;
+       dwStyle = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+   }
+   else
+   {
+       dwExStyle = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+       dwStyle = WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+   }
+
+   RECT windowRect{
+       .left = 0L,
+       .top = 0L,
+       .right = (long)destWidth,
+       .bottom = (long)destHeight
+   };
+   AdjustWindowRectEx(&windowRect, dwStyle, FALSE, dwExStyle);
+
+
+   gHwnd = CreateWindowW(szWindowClass, szTitle,
+       dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+       CW_USEDEFAULT, CW_USEDEFAULT, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
+       nullptr, nullptr, hInstance, nullptr);
 
    if (!gHwnd)
    {

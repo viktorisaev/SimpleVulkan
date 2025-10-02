@@ -3,8 +3,11 @@
 #include "VulkanBase/VulkanDebug.h"
 
 
-bool VulkanRender::Init(HINSTANCE hInstance, HWND hwnd)
+bool VulkanRender::Init(HINSTANCE hInstance, HWND hwnd, uint32_t destWidth, uint32_t destHeight)
 {
+	width = destWidth;
+	height = destHeight;
+
 	initVulkan();
     createSurface(hInstance, hwnd);
 

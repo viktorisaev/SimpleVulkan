@@ -47,7 +47,7 @@ struct Vertex {
 class VulkanRender
 {
 public:
-    bool Init(HINSTANCE instance, HWND hwnd);
+    bool Init(HINSTANCE instance, HWND hwnd, uint32_t destWidth, uint32_t destHeight);
 
     void RenderFrame(float deltaTime);
 
