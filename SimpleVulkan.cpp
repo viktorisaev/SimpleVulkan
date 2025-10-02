@@ -5,6 +5,8 @@
 #include "SimpleVulkan.h"
 #include "VulkanRender.h"
 
+#include <chrono>
+
 #define MAX_LOADSTRING 100
 
 // Global Variables:
@@ -19,6 +21,14 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+
+// Frame counter to display fps
+uint32_t gFrameCounter = 0;
+uint32_t lastFPS = 0;
+std::chrono::time_point<std::chrono::high_resolution_clock> gLastTimestamp;
+
+
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -49,6 +59,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
+    gLastTimestamp = std::chrono::high_resolution_clock::now();
+
     // Main message loop:
     bool quitMessageReceived = false;
     while (!quitMessageReceived) {
@@ -64,7 +76,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         // MAIN: render Vulkan3D
         if (!IsIconic(gHwnd))
         {
-            gVulkanRender->RenderFrame();
+            gFrameCounter++;
+
+            auto tNow = std::chrono::high_resolution_clock::now();
+
+            float deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(tNow - gLastTimestamp).count();
+            gVulkanRender->RenderFrame(deltaTime);
+            gLastTimestamp = tNow;
         }
     }
 

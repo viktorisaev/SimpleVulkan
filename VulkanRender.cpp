@@ -28,9 +28,6 @@ bool VulkanRender::Init(HINSTANCE hInstance, HWND hwnd)
 
 	createVertexBuffer();
 
-	updateViewMatrix();	// set m_viewMatrix
-
-
 	// TODO: remove it from here!
 	prepared = true;
 
@@ -56,12 +53,16 @@ struct ShaderData {
 };
 
 
-void VulkanRender::RenderFrame()
+void VulkanRender::RenderFrame(float deltaTime)
 {
 	if (!prepared)
 	{
 		return;
 	}
+
+	// game logic update
+	updateViewMatrix(deltaTime);	// set m_viewMatrix
+
 
 	// Use a fence to wait until the command buffer has finished execution before using it again
 	vkWaitForFences(vulkDevice, 1, &vulkWaitFences[m_currentFrame], VK_TRUE, UINT64_MAX);
@@ -518,48 +519,7 @@ void VulkanRender::createSurface(HINSTANCE hInstance, HWND hwnd)
 }
 
 
-
-//void VulkanRender::nextFrame()
-//{
-//	auto tStart = std::chrono::high_resolution_clock::now();
-//	render();
-//	frameCounter++;
-//	auto tEnd = std::chrono::high_resolution_clock::now();
-//#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(VK_USE_PLATFORM_METAL_EXT)) && !defined(VK_EXAMPLE_XCODE_GENERATED)
-//	// SRS - Calculate tDiff as time between frames vs. rendering time for iOS/macOS displayLink-driven examples project
-//	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tPrevEnd).count();
-//#else
-//	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-//#endif
-//	frameTimer = (float)tDiff / 1000.0f;
-//	camera.update(frameTimer);
-//	// Convert to clamped timer value
-//	if (!paused)
-//	{
-//		timer += timerSpeed * frameTimer;
-//		if (timer > 1.0)
-//		{
-//			timer -= 1.0f;
-//		}
-//	}
-//	float fpsTimer = (float)(std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count());
-//	if (fpsTimer > 1000.0f)
-//	{
-//		lastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));
-//#if defined(_WIN32)
-//		if (!settings.overlay) {
-//			std::string windowTitle = getWindowTitle();
-//			SetWindowText(window, windowTitle.c_str());
-//		}
-//#endif
-//		frameCounter = 0;
-//		lastTimestamp = tEnd;
-//	}
-//	tPrevEnd = tEnd;
-//}
-
-
-	// Create the per-frame (in flight) Vulkan synchronization primitives used in this example
+// Create the per-frame (in flight) Vulkan synchronization primitives used in this example
 void VulkanRender::createSynchronizationPrimitives()
 {
 	// Fences are used to check draw command buffer completion on the host
@@ -1343,19 +1303,24 @@ VkShaderModule VulkanRender::loadSPIRVShader(const std::string& filename)
 	}
 }
 
-void VulkanRender::updateViewMatrix()
+glm::vec3 gRotation = glm::vec3(0.0f, 0.0f, 0.0f);
+
+void VulkanRender::updateViewMatrix(float deltaTime)
 {
 	glm::mat4 currentMatrix = m_viewMatrix;
 
-	glm::vec3 rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 position = glm::vec3(0.0f, 0.0f, -1.5f);
+	// update rotation
+	gRotation.x -= 160.0f * deltaTime;
+	gRotation.y += 25.0f * deltaTime;
+
+	glm::vec3 position = glm::vec3(0.0f, 0.0f, -2.0f);
 
 	glm::mat4 rotM = glm::mat4(1.0f);
 	glm::mat4 transM;
 
-	rotM = glm::rotate(rotM, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-	rotM = glm::rotate(rotM, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-	rotM = glm::rotate(rotM, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+	rotM = glm::rotate(rotM, glm::radians(gRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(gRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(gRotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
 	glm::vec3 translation = position;
 	transM = glm::translate(glm::mat4(1.0f), translation);

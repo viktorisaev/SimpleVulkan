@@ -85,11 +85,11 @@ struct FragmentOutput {
 };
 
 // Constant directional light
-static float3 lightDirection = normalize(float3(0.0, 0.0, 2.0)); // Should be normalized
+static float3 lightDirection = normalize(float3(0.2, 0.2, 1.0)); // Should be normalized
 static float3 lightColor = float3(1.0, 0.0, 0.0);
 static float3 baseColor = float3(0.05, 0.05, 0.05);
 
-static float3 viewPosition   = float3(0.0, 0.0, -2.5);            // Camera position in world space
+static float3 viewPosition   = float3(1.0, 1.0, 1.5);            // Camera position in world space
 
 [shader("fragment")]
 float4 fragmentMain(VertexToFragment input)

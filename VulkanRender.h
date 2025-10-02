@@ -49,7 +49,7 @@ class VulkanRender
 public:
     bool Init(HINSTANCE instance, HWND hwnd);
 
-    void RenderFrame();
+    void RenderFrame(float deltaTime);
 
     void Finalize();
 
@@ -72,7 +72,8 @@ private:
 
     VkShaderModule loadSPIRVShader(const std::string& filename);
     uint32_t getMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags properties);
-    void updateViewMatrix();
+
+    void updateViewMatrix(float deltaTime);
 
 private:
     VkInstance vulkInstance{ VK_NULL_HANDLE };
